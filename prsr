@@ -1,0 +1,48 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+use DBI;
+
+my $dbh = DBI->connect( "DBI:mysql:database=test;host=localhost", "user", "" ) or
+    die 'Error connecting to to database: '.$DBI::errstr."\n";
+
+my $sth_msg = $dbh->prepare( 'insert into message( created, id, int_id, str ) values ( ?, ?, ?, ? )' ) or
+    die 'Error preparing statement 0: '.$dbh->errstr()."\n";
+
+my $sth_log = $dbh->prepare( 'insert into log( created, int_id, str, address ) values ( ?, ?, ?, ? )' ) or
+    die 'Error preparing statement 1: '.$dbh->errstr()."\n";
+
+my %BlackHole = ();
+
+while(<>)
+{
+    chomp;
+    m'(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) (\S+) <= <>' && do {
+	$BlackHole{$2} = 1;
+#	print "Got BH $2.\n";
+	next;
+    };
+
+    m'(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) ((\S+) <= [^<].* id=(\S+))' && do {
+#	print "ts=$1 int_id=$3 id=$4\n";
+	$sth_msg->execute( $1, $4, $3, substr($2,0,200) );
+	next;
+    };
+
+    m'(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) ((\S+) (?:=>|->|\*\*|==) (\S+)\s.*)' && do {
+#	print "ts=$1 int_id=$3 recepient=$4\n";
+	next if exists $BlackHole{$3};
+	$sth_log->execute( $1, $3, substr($2,0,200), $4 );
+	next;
+    };
+
+    # Dropping 'Completed' message due to its redundance.
+    m'(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) (\S+) Completed' && do {
+	undef $BlackHole{$2} if exists $BlackHole{$2};
+	next;
+    };
+
+    # Printing the protocol errors related messaged to stderr.
+#    print stdout $_."\n";
+}
