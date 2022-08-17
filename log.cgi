@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-my $LINELIMIT = 200;
+my $LINELIMIT = 100;
 
 use CGI;
 
